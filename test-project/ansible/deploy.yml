@@ -1,0 +1,12 @@
+---
+- name: Deploy Docker application
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Pull Docker image
+      ansible.builtin.debug:
+        msg: "Pulling image ghcr.io/pipery-dev/docker-app:latest on {{ inventory_hostname }}"
+
+    - name: Run Docker container
+      ansible.builtin.debug:
+        msg: "Running docker-app container on {{ inventory_hostname }}"

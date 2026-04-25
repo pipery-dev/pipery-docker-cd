@@ -1,0 +1,14 @@
+name: basic-test
+description: Validate Docker CD action (all steps skipped).
+source_path: test-project
+inputs:
+  project_path: test-project
+  skip_pull: "true"
+  skip_deploy: "true"
+  skip_status_check: "true"
+expect:
+  log_path: pipery.jsonl
+  success_values: [success, passed, ok, succeeded]
+  required_fields:
+    - name: event
+      value: build

@@ -1,0 +1,8 @@
+version: "3.9"
+
+services:
+  docker-app:
+    image: ghcr.io/pipery-dev/docker-app:latest
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
