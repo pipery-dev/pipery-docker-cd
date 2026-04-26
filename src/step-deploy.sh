@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env psh
 set -euo pipefail
 
 # Pipery Docker CD - Deploy step
@@ -26,4 +26,4 @@ STRATEGY="${INPUT_DEPLOY_STRATEGY:-rolling}"
 
 echo "[step-deploy] Deploying via target=${TARGET} strategy=${STRATEGY}"
 
-psh -log-file "$LOG" -fail-on-error -c "pipery-steps deploy --target ${TARGET} --strategy ${STRATEGY} --log-file ${LOG}"
+pipery-steps deploy --target ${TARGET} --strategy ${STRATEGY} --log-file ${LOG}
