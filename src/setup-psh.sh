@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Download and install psh binary
 PSH_VERSION="0.1.0"
-PSH_URL="https://github.com/pipery-dev/pipery/releases/download/v${PSH_VERSION}/psh-${PSH_VERSION}-linux-amd64.tar.gz"
+ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+PSH_URL="https://github.com/pipery-dev/pipery/releases/download/v${PSH_VERSION}/psh-${PSH_VERSION}-linux-${ARCH}.tar.gz"
 INSTALL_DIR="${HOME}/.local/bin"
 
 if command -v psh >/dev/null 2>&1; then
@@ -13,7 +14,7 @@ fi
 
 mkdir -p "$INSTALL_DIR"
 
-echo "[setup-psh] Downloading psh v${PSH_VERSION} ..."
+echo "[setup-psh] Downloading psh v${PSH_VERSION} (${ARCH}) ..."
 TMP=$(mktemp -d)
 trap "rm -rf $TMP" EXIT
 
