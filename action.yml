@@ -100,18 +100,72 @@ inputs:
 runs:
   using: composite
   steps:
-    - id: main
+    - name: Setup psh
       shell: bash
-      run: |
-        set -euo pipefail
-        project_path="${INPUT_PROJECT_PATH:-${PIPERY_TEST_PROJECT_PATH:-.}}"
-        log_path="${PIPERY_LOG_PATH:-pipery.jsonl}"
-        if [ ! -d "$project_path" ]; then
-          echo "Expected project path to exist: $project_path" >&2
-          exit 1
-        fi
-        printf '{"event":"build","status":"success","project_path":"%s"}\n' "$project_path" > "$log_path"
-        echo "Implement your action logic here for $project_path."
+      run: "${{ github.action_path }}/src/setup-psh.sh"
+      env:
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Install pipery-tooling
+      shell: bash
+      run: pip install --quiet pipery-tooling 2>/dev/null || true
+
+    - name: Pull image
+      if: ${{ inputs.skip_pull != 'true' }}
+      shell: bash
+      run: "${{ github.action_path }}/src/step-pull.sh"
+      env:
+        INPUT_IMAGE_NAME: ${{ inputs.image_name }}
+        INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+        INPUT_REGISTRY: ${{ inputs.registry }}
+        INPUT_REGISTRY_USERNAME: ${{ inputs.registry_username }}
+        INPUT_REGISTRY_PASSWORD: ${{ inputs.registry_password }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Deploy
+      if: ${{ inputs.skip_deploy != 'true' }}
+      shell: bash
+      run: "${{ github.action_path }}/src/step-deploy.sh"
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_DEPLOY_TARGET: ${{ inputs.deploy_target }}
+        INPUT_DEPLOY_STRATEGY: ${{ inputs.deploy_strategy }}
+        INPUT_ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        INPUT_ARGOCD_APP: ${{ inputs.argocd_app }}
+        INPUT_ARGOCD_TOKEN: ${{ inputs.argocd_token }}
+        INPUT_CLOUD_RUN_SERVICE: ${{ inputs.cloud_run_service }}
+        INPUT_CLOUD_RUN_REGION: ${{ inputs.cloud_run_region }}
+        INPUT_CLOUD_RUN_IMAGE: ${{ inputs.cloud_run_image }}
+        INPUT_HELM_RELEASE: ${{ inputs.helm_release }}
+        INPUT_HELM_CHART: ${{ inputs.helm_chart }}
+        INPUT_HELM_NAMESPACE: ${{ inputs.helm_namespace }}
+        INPUT_ANSIBLE_PLAYBOOK: ${{ inputs.ansible_playbook }}
+        INPUT_ANSIBLE_INVENTORY: ${{ inputs.ansible_inventory }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Check deployment status
+      if: ${{ inputs.skip_status_check != 'true' }}
+      shell: bash
+      run: "${{ github.action_path }}/src/step-status.sh"
+      env:
+        INPUT_DEPLOY_TARGET: ${{ inputs.deploy_target }}
+        INPUT_ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        INPUT_ARGOCD_APP: ${{ inputs.argocd_app }}
+        INPUT_ARGOCD_TOKEN: ${{ inputs.argocd_token }}
+        INPUT_CLOUD_RUN_SERVICE: ${{ inputs.cloud_run_service }}
+        INPUT_CLOUD_RUN_REGION: ${{ inputs.cloud_run_region }}
+        INPUT_HELM_RELEASE: ${{ inputs.helm_release }}
+        INPUT_HELM_NAMESPACE: ${{ inputs.helm_namespace }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Upload logs
+      if: always()
+      shell: bash
+      run: "${{ github.action_path }}/src/main.sh"
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
 branding:
-  icon: package
+  icon: upload-cloud
   color: blue
