@@ -9,7 +9,9 @@ if [ -z "${INPUT_IMAGE_NAME:-}" ]; then
 fi
 
 if [ -n "${INPUT_REGISTRY_PASSWORD:-}" ]; then
-  echo "${INPUT_REGISTRY_PASSWORD}" | docker login "${INPUT_REGISTRY:-ghcr.io}" -u "${INPUT_REGISTRY_USERNAME:-}" --password-stdin
+  LOGIN_ARGS=()
+  [ -n "${INPUT_REGISTRY_USERNAME:-}" ] && LOGIN_ARGS+=(-u "${INPUT_REGISTRY_USERNAME}")
+  echo "${INPUT_REGISTRY_PASSWORD}" | docker login "${INPUT_REGISTRY:-ghcr.io}" "${LOGIN_ARGS[@]}" --password-stdin
 fi
 
 docker pull "${INPUT_IMAGE_NAME}:${INPUT_IMAGE_TAG:-latest}"

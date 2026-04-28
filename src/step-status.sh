@@ -17,7 +17,9 @@ case "$TARGET" in
       echo "[step-status] argocd_app not configured; skipping status check."
       exit 0
     fi
-    ARGOCD_AUTH_TOKEN="${INPUT_ARGOCD_TOKEN:-}" argocd app get "${APP}" --server "${INPUT_ARGOCD_SERVER:-}"
+    SERVER_ARGS=()
+    [ -n "${INPUT_ARGOCD_SERVER:-}" ] && SERVER_ARGS=(--server "${INPUT_ARGOCD_SERVER}")
+    ARGOCD_AUTH_TOKEN="${INPUT_ARGOCD_TOKEN:-}" argocd app get "${APP}" "${SERVER_ARGS[@]}"
     ;;
   helm)
     if ! command -v helm >/dev/null 2>&1; then
