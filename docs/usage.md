@@ -22,7 +22,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pipery-dev/pipery-docker-cd@v0
+      - uses: pipery-dev/pipery-docker-cd@v1
         with:
           project_path: .
+          config_file: .github/pipery/config.yaml
+          deploy_target: argocd
+          deploy_strategy: rolling
+          skip_pull: false
+          skip_deploy: false
+          skip_status_check: false
+          image_name: 
+          image_tag: latest
+          registry: ghcr.io
+          registry_username: 
+          registry_password: 
+          argocd_server: 
+          argocd_app: 
+          argocd_token: 
+          cloud_run_service: 
+          cloud_run_region: us-central1
+          cloud_run_image: 
+          helm_release: 
+          helm_chart: 
+          helm_namespace: default
+          ansible_playbook: 
+          ansible_inventory: 
+          log_file: pipery.jsonl
 ```
