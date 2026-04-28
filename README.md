@@ -1,101 +1,85 @@
-# Pipery Docker CD
+# <img src="https://raw.githubusercontent.com/feathericons/feather/master/icons/upload-cloud.svg" width="28" align="center" /> Pipery Docker CD
 
-CD pipeline for Docker: pull image, deploy (ArgoCD/Cloud Run/Helm/Ansible), check status
+Reusable GitHub Action for Docker CD — pull image, deploy, and verify — with structured logging via [Pipery](https://pipery.dev).
 
-## Status
-
-- Owner: `pipery-dev`
-- Repository: `pipery-docker-cd`
-- Marketplace category: `continuous-integration`
-- Current version: `1.0.0`
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-Pipery%20Docker%20CD-blue?logo=github)](https://github.com/marketplace/actions/pipery-docker-cd)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## Usage
 
 ```yaml
-name: Example
-on: [push]
+name: CD
+on:
+  push:
+    branches: [main]
 
 jobs:
-  run-action:
+  cd:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pipery-dev/pipery-docker-cd@v1
         with:
-          project_path: .
-          config_file: .github/pipery/config.yaml
+          image_name: ghcr.io/${{ github.repository }}
+          image_tag: ${{ github.sha }}
           deploy_target: argocd
-          deploy_strategy: rolling
-          skip_pull: false
-          skip_deploy: false
-          skip_status_check: false
-          image_name: 
-          image_tag: latest
-          registry: ghcr.io
-          registry_username: 
-          registry_password: 
-          argocd_server: 
-          argocd_app: 
-          argocd_token: 
-          cloud_run_service: 
-          cloud_run_region: us-central1
-          cloud_run_image: 
-          helm_release: 
-          helm_chart: 
-          helm_namespace: default
-          ansible_playbook: 
-          ansible_inventory: 
-          log_file: pipery.jsonl
+          argocd_server: ${{ vars.ARGOCD_SERVER }}
+          argocd_app: my-app
+          argocd_token: ${{ secrets.ARGOCD_TOKEN }}
 ```
+
+## Pipeline steps
+
+| Step | Description | Skip input |
+|---|---|---|
+| Download | Pull Docker image from registry | `skip_download` |
+| Deploy | Deploy via ArgoCD, Cloud Run, Helm, or Ansible | `skip_deploy` |
+| Status check | Verify deployment health | `skip_status_check` |
 
 ## Inputs
 
-| Name | Required | Default | Description |
-| --- | --- | --- | --- |
-| `project_path` | no | `.` | Path to the project source tree the action should operate on. |
-| `config_file` | no | `.github/pipery/config.yaml` | Path to the pipery config file. |
-| `deploy_target` | no | `argocd` | Deployment target: argocd, cloud-run, helm, or ansible. |
-| `deploy_strategy` | no | `rolling` | Deployment strategy: rolling, blue-green, or canary. |
-| `skip_pull` | no | `false` | Skip the image pull step. |
-| `skip_deploy` | no | `false` | Skip the deploy step. |
-| `skip_status_check` | no | `false` | Skip the status check step. |
-| `image_name` | no | `` | Container image name to pull (e.g. ghcr.io/org/app). |
-| `image_tag` | no | `latest` | Container image tag to pull. |
-| `registry` | no | `ghcr.io` | Container registry hostname. |
-| `registry_username` | no | `` | Username for registry login. |
-| `registry_password` | no | `` | Password or token for registry login. |
-| `argocd_server` | no | `` | ArgoCD server URL. |
-| `argocd_app` | no | `` | ArgoCD application name. |
-| `argocd_token` | no | `` | ArgoCD authentication token. |
-| `cloud_run_service` | no | `` | Cloud Run service name. |
-| `cloud_run_region` | no | `us-central1` | Cloud Run region. |
-| `cloud_run_image` | no | `` | Container image to deploy to Cloud Run. |
-| `helm_release` | no | `` | Helm release name. |
-| `helm_chart` | no | `` | Helm chart path or reference. |
-| `helm_namespace` | no | `default` | Kubernetes namespace for Helm deployment. |
-| `ansible_playbook` | no | `` | Path to the Ansible playbook file. |
-| `ansible_inventory` | no | `` | Path to the Ansible inventory file. |
-| `log_file` | no | `pipery.jsonl` | Path to write the JSONL log file. |
+| Name | Default | Description |
+|---|---|---|
+| `image_name` | `` | Docker image to pull (e.g. `ghcr.io/org/app`). |
+| `image_tag` | `latest` | Image tag to pull. |
+| `registry` | `ghcr.io` | Container registry host. |
+| `registry_username` | `` | Registry login username. |
+| `registry_password` | `` | Registry login password or token. |
+| `deploy_target` | `argocd` | Deployment target: `argocd`, `cloud-run`, `helm`, or `ansible`. |
+| `deploy_strategy` | `rolling` | Deployment strategy: `rolling`, `blue-green`, or `canary`. |
+| `argocd_server` | `` | ArgoCD server URL. |
+| `argocd_app` | `` | ArgoCD application name. |
+| `argocd_token` | `` | ArgoCD authentication token. |
+| `cloud_run_service` | `` | Cloud Run service name. |
+| `cloud_run_region` | `us-central1` | Cloud Run region. |
+| `cloud_run_image` | `` | Container image to deploy to Cloud Run. |
+| `helm_release` | `` | Helm release name. |
+| `helm_chart` | `` | Helm chart path or reference. |
+| `helm_namespace` | `default` | Kubernetes namespace. |
+| `ansible_playbook` | `` | Path to Ansible playbook. |
+| `ansible_inventory` | `` | Path to Ansible inventory. |
+| `log_file` | `pipery.jsonl` | Path to the JSONL structured log file. |
+| `skip_download` | `false` | Skip the image pull step. |
+| `skip_deploy` | `false` | Skip the deploy step. |
+| `skip_status_check` | `false` | Skip the post-deploy status check. |
 
-## Outputs
+## About Pipery
 
-No outputs.
+<img src="https://raw.githubusercontent.com/feathericons/feather/master/icons/zap.svg" width="18" align="center" /> [**Pipery**](https://pipery.dev) is an open-source CI/CD observability platform. Every step script runs under **psh** (Pipery Shell), which intercepts all commands and emits structured JSONL events — giving you full visibility into your pipeline without any manual instrumentation.
+
+- Browse logs in the [Pipery Dashboard](https://github.com/pipery-dev/pipery-dashboard)
+- Find all Pipery actions on [GitHub Marketplace](https://github.com/marketplace?q=pipery&type=actions)
+- Source code: [pipery-dev](https://github.com/pipery-dev)
 
 ## Development
 
-This repository is managed with `pipery-tooling`.
-
 ```bash
+# Run the action locally against test-project/
 pipery-actions test --repo .
+
+# Regenerate docs
 pipery-actions docs --repo .
+
+# Dry-run release
 pipery-actions release --repo . --dry-run
 ```
-
-By default, `pipery-actions test --repo .` executes the action against `test-project` and validates `pipery.jsonl`.
-
-## Marketplace Release Flow
-
-1. Update the implementation and changelog.
-2. Run `pipery-actions release --repo .`.
-3. Push the created git tag and major tag alias.
-4. Publish the GitHub release.
