@@ -1,4 +1,4 @@
-# <img src="https://raw.githubusercontent.com/feathericons/feather/master/icons/upload-cloud.svg" width="28" align="center" /> Pipery Docker CD
+# <img src="https://raw.githubusercontent.com/pipery-dev/pipery-docker-cd/main/assets/icon.png" width="28" align="center" /> Pipery Docker CD
 
 Reusable GitHub Action for Docker CD — pull image, deploy, and verify — with structured logging via [Pipery](https://pipery.dev).
 
@@ -46,6 +46,8 @@ jobs:
 | `registry` | `ghcr.io` | Container registry host. |
 | `registry_username` | `` | Registry login username. |
 | `registry_password` | `` | Registry login password or token. |
+| `project_path` | `.` | Path to the project source tree. |
+| `config_file` | `.github/pipery/config.yaml` | Path to Pipery config file. |
 | `deploy_target` | `argocd` | Deployment target: `argocd`, `cloud-run`, `helm`, or `ansible`. |
 | `deploy_strategy` | `rolling` | Deployment strategy: `rolling`, `blue-green`, or `canary`. |
 | `argocd_server` | `` | ArgoCD server URL. |
@@ -60,13 +62,13 @@ jobs:
 | `ansible_playbook` | `` | Path to Ansible playbook. |
 | `ansible_inventory` | `` | Path to Ansible inventory. |
 | `log_file` | `pipery.jsonl` | Path to the JSONL structured log file. |
-| `skip_download` | `false` | Skip the image pull step. |
+| `skip_download` | `false` | Skip the download step. |
 | `skip_deploy` | `false` | Skip the deploy step. |
 | `skip_status_check` | `false` | Skip the post-deploy status check. |
 
 ## About Pipery
 
-<img src="https://raw.githubusercontent.com/feathericons/feather/master/icons/zap.svg" width="18" align="center" /> [**Pipery**](https://pipery.dev) is an open-source CI/CD observability platform. Every step script runs under **psh** (Pipery Shell), which intercepts all commands and emits structured JSONL events — giving you full visibility into your pipeline without any manual instrumentation.
+<img src="https://avatars.githubusercontent.com/u/270923927?s=32" width="22" align="center" /> [**Pipery**](https://pipery.dev) is an open-source CI/CD observability platform. Every step script runs under **psh** (Pipery Shell), which intercepts all commands and emits structured JSONL events — giving you full visibility into your pipeline without any manual instrumentation.
 
 - Browse logs in the [Pipery Dashboard](https://github.com/pipery-dev/pipery-dashboard)
 - Find all Pipery actions on [GitHub Marketplace](https://github.com/marketplace?q=pipery&type=actions)
