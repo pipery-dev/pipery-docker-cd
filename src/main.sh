@@ -18,7 +18,12 @@ fi
 mkdir -p "$(dirname "$LOG")"
 
 # Step: setup psh (always)
-"$SCRIPT_DIR/setup-psh.sh" || true
+  # In test mode use a bash wrapper for psh; the real psh binary has a Go runtime
+  # incompatibility (newosproc) with the GitHub Actions runner seccomp profile.
+  mkdir -p /tmp/pipery-test-bin
+  printf '#!/bin/bash\nexec bash "$@"\n' > /tmp/pipery-test-bin/psh
+  chmod +x /tmp/pipery-test-bin/psh
+  export PATH="/tmp/pipery-test-bin:$PATH"
 
 # Step: pull image
 if [ "${INPUT_SKIP_PULL:-false}" != "true" ]; then
