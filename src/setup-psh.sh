@@ -16,7 +16,7 @@ mkdir -p "$INSTALL_DIR"
 
 echo "[setup-psh] Downloading psh v${PSH_VERSION} (${ARCH}) ..."
 TMP=$(mktemp -d)
-trap "rm -rf $TMP" EXIT
+trap 'rm -rf "$TMP"' EXIT
 
 curl -fsSL "$PSH_URL" -o "$TMP/psh.tar.gz"
 tar -xzf "$TMP/psh.tar.gz" -C "$TMP"
