@@ -1,6 +1,7 @@
 #!/usr/bin/env psh
 set -euo pipefail
 
+# shellcheck disable=SC2034
 LOG="${INPUT_LOG_FILE:-pipery.jsonl}"
 TARGET="${INPUT_DEPLOY_TARGET:-argocd}"
 
