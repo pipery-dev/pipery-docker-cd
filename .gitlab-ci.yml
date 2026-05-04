@@ -1,0 +1,83 @@
+# GitLab CI Pipeline for pipery-docker-cd
+# Docker image deployment to multiple targets
+variables:
+  PROJECT_PATH: "."
+  IMAGE_NAME: ""
+  IMAGE_TAG: "latest"
+  DEPLOY_TARGET: "kubernetes"
+  DEPLOY_STRATEGY: "rolling"
+  REGISTRY: "ghcr.io"
+  SKIP_DEPLOY: "false"
+  LOG_FILE: "pipery.jsonl"
+
+stages:
+  - checkout
+  - setup
+  - download
+  - deploy
+  - status_check
+  - logs
+
+checkout:
+  stage: checkout
+  image: alpine:latest
+  script:
+    - git rev-parse HEAD > .git_commit_sha
+
+setup:
+  stage: setup
+  image: alpine:latest
+  script:
+    - apk add --no-cache docker
+
+download:
+  stage: download
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache docker
+  script:
+    - docker pull "$IMAGE_NAME:$IMAGE_TAG"
+
+deploy:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache docker kubectl openssh-client
+  script:
+    - |
+      case "$DEPLOY_TARGET" in
+        "docker")
+          echo "$REGISTRY_PASSWORD" | docker login -u "$REGISTRY_USERNAME" --password-stdin "$REGISTRY"
+          docker tag "$IMAGE_NAME:$IMAGE_TAG" "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+          docker push "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+          ;;
+        "kubernetes")
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl set image deployment/app app="$IMAGE_NAME:$IMAGE_TAG" --record
+          kubectl rollout status deployment/app --timeout=5m
+          ;;
+        "cloud-run")
+          gcloud run deploy "$SERVICE_NAME" --image="$IMAGE_NAME:$IMAGE_TAG"
+          ;;
+      esac
+  rules:
+    - if: '$SKIP_DEPLOY == "true"'
+      when: manual
+
+status_check:
+  stage: status_check
+  image: alpine:latest
+  script:
+    - echo "Docker deployment status: $DEPLOY_TARGET"
+  allow_failure: true
+
+logs:
+  stage: logs
+  image: alpine:latest
+  script:
+    - echo "{\"deployment\":\"docker-cd\",\"image\":\"$IMAGE_NAME:$IMAGE_TAG\",\"commit\":\"$(cat .git_commit_sha)\"}" > "$LOG_FILE"
+  artifacts:
+    paths:
+      - $LOG_FILE
+    expire_in: 90 days
+  when: always
