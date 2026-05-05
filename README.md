@@ -29,6 +29,17 @@ jobs:
           argocd_token: ${{ secrets.ARGOCD_TOKEN }}
 ```
 
+## GitLab CI
+
+This repository also includes a GitLab CI equivalent at `.gitlab-ci.yml`. Copy it into a GitLab project or use it as the reference implementation when you want to run the same Pipery pipeline outside GitHub Actions.
+
+The GitLab pipeline maps the action inputs to CI/CD variables, publishes `pipery.jsonl` as an artifact, and keeps the same skip controls where the GitHub Action exposes them. Store credentials such as deploy tokens, registry passwords, and cloud provider keys as protected GitLab CI/CD variables.
+
+```yaml
+include:
+  - remote: https://raw.githubusercontent.com/pipery-dev/pipery-docker-cd/v1/.gitlab-ci.yml
+```
+
 ## Pipeline steps
 
 | Step | Description | Skip input |
@@ -47,7 +58,7 @@ jobs:
 | `registry_username` | `` | Registry login username. |
 | `registry_password` | `` | Registry login password or token. |
 | `project_path` | `.` | Path to the project source tree. |
-| `config_file` | `.github/pipery/config.yaml` | Path to Pipery config file. |
+| `config_file` | `.pipery/config.yaml` | Path to Pipery config file. |
 | `deploy_target` | `argocd` | Deployment target: `argocd`, `cloud-run`, `helm`, or `ansible`. |
 | `deploy_strategy` | `rolling` | Deployment strategy: `rolling`, `blue-green`, or `canary`. |
 | `argocd_server` | `` | ArgoCD server URL. |

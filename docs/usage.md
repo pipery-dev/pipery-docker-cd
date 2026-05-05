@@ -25,7 +25,7 @@ jobs:
       - uses: pipery-dev/pipery-docker-cd@v1
         with:
           project_path: .
-          config_file: .github/pipery/config.yaml
+          config_file: .pipery/config.yaml
           deploy_target: argocd
           deploy_strategy: rolling
           skip_pull: false
