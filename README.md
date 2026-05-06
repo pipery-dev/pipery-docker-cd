@@ -77,6 +77,45 @@ include:
 | `skip_deploy` | `false` | Skip the deploy step. |
 | `skip_status_check` | `false` | Skip the post-deploy status check. |
 
+## Bitbucket Pipelines
+
+Bitbucket Cloud pipelines support this deployment workflow. The equivalent configuration is in `bitbucket-pipelines.yml`.
+
+### Quick Start
+
+1. Copy `bitbucket-pipelines.yml` to your Bitbucket repository root
+2. Configure deployment targets and credentials in Repository Variables:
+   - `ARGOCD_TOKEN` - ArgoCD authentication token
+   - `ARGOCD_SERVER` - ArgoCD server URL
+   - `GCLOUD_SERVICE_KEY_BASE64` - GCP service account key (for Cloud Run)
+3. Set DEPLOY_TARGET variable (e.g., "argocd", "cloud-run", "helm")
+4. Commit to trigger deployment
+
+### Pipeline Stages
+
+- checkout → setup → download → deploy → status_check → logs
+
+### Deployment Targets
+
+See `bitbucket-pipelines.yml` for supported deployment targets:
+- **argocd**: ArgoCD-based Kubernetes deployment
+- **cloud-run**: Google Cloud Run serverless
+- **helm**: Kubernetes Helm charts
+- **ansible**: Infrastructure automation
+
+### Features
+
+- Multi-target Docker image deployment
+- Container registry authentication
+- Deployment strategies: rolling, blue-green, canary
+- Health checks and rollback support
+- 90-day log retention
+
+### Documentation
+
+- See `bitbucket-pipelines.yml` for complete customization options
+- Refer to [Bitbucket Pipelines Documentation](https://support.atlassian.com/bitbucket-cloud/docs/get-started-with-bitbucket-pipelines/) for detailed reference
+
 ## About Pipery
 
 <img src="https://avatars.githubusercontent.com/u/270923927?s=32" width="22" align="center" /> [**Pipery**](https://pipery.dev) is an open-source CI/CD observability platform. Every step script runs under **psh** (Pipery Shell), which intercepts all commands and emits structured JSONL events — giving you full visibility into your pipeline without any manual instrumentation.
