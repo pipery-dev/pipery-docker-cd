@@ -22,44 +22,48 @@ checkout:
   stage: checkout
   image: alpine:latest
   script:
-    - git rev-parse HEAD > .git_commit_sha
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-checkout.sh
+  env:
+    INPUT_LOG_FILE: $LOG_FILE
 
 setup:
   stage: setup
   image: alpine:latest
   script:
-    - apk add --no-cache docker
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/setup-psh.sh
+  env:
+    INPUT_LOG_FILE: $LOG_FILE
 
 download:
   stage: download
   image: alpine:latest
-  before_script:
-    - apk add --no-cache docker
   script:
-    - docker pull "$IMAGE_NAME:$IMAGE_TAG"
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-pull.sh
+  env:
+    INPUT_IMAGE_NAME: $IMAGE_NAME
+    INPUT_IMAGE_TAG: $IMAGE_TAG
+    INPUT_REGISTRY: $REGISTRY
+    INPUT_LOG_FILE: $LOG_FILE
 
 deploy:
   stage: deploy
   image: alpine:latest
-  before_script:
-    - apk add --no-cache docker kubectl openssh-client
   script:
-    - |
-      case "$DEPLOY_TARGET" in
-        "docker")
-          echo "$REGISTRY_PASSWORD" | docker login -u "$REGISTRY_USERNAME" --password-stdin "$REGISTRY"
-          docker tag "$IMAGE_NAME:$IMAGE_TAG" "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
-          docker push "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
-          ;;
-        "kubernetes")
-          export KUBECONFIG=/tmp/kubeconfig
-          kubectl set image deployment/app app="$IMAGE_NAME:$IMAGE_TAG" --record
-          kubectl rollout status deployment/app --timeout=5m
-          ;;
-        "cloud-run")
-          gcloud run deploy "$SERVICE_NAME" --image="$IMAGE_NAME:$IMAGE_TAG"
-          ;;
-      esac
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-deploy.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_DEPLOY_TARGET: $DEPLOY_TARGET
+    INPUT_DEPLOY_STRATEGY: $DEPLOY_STRATEGY
+    INPUT_IMAGE_NAME: $IMAGE_NAME
+    INPUT_IMAGE_TAG: $IMAGE_TAG
+    INPUT_REGISTRY: $REGISTRY
+    INPUT_REGISTRY_USERNAME: $REGISTRY_USERNAME
+    INPUT_REGISTRY_PASSWORD: $REGISTRY_PASSWORD
+    INPUT_LOG_FILE: $LOG_FILE
   rules:
     - if: '$SKIP_DEPLOY == "true"'
       when: manual
@@ -68,14 +72,24 @@ status_check:
   stage: status_check
   image: alpine:latest
   script:
-    - echo "Docker deployment status: $DEPLOY_TARGET"
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-status.sh
+  env:
+    INPUT_DEPLOY_TARGET: $DEPLOY_TARGET
+    INPUT_IMAGE_NAME: $IMAGE_NAME
+    INPUT_IMAGE_TAG: $IMAGE_TAG
+    INPUT_LOG_FILE: $LOG_FILE
   allow_failure: true
 
 logs:
   stage: logs
   image: alpine:latest
   script:
-    - echo "{\"deployment\":\"docker-cd\",\"image\":\"$IMAGE_NAME:$IMAGE_TAG\",\"commit\":\"$(cat .git_commit_sha)\"}" > "$LOG_FILE"
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/main.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_LOG_FILE: $LOG_FILE
   artifacts:
     paths:
       - $LOG_FILE

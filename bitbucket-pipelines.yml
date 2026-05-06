@@ -23,8 +23,10 @@ definitions:
         name: Checkout Repository
         image: alpine:latest
         script:
-          - echo "Repository ready at $BITBUCKET_BRANCH:$BITBUCKET_COMMIT"
-          - ls -la
+          # Refactored: Call shared script instead of inline logic
+          - bash ./src/step-checkout.sh
+        env:
+          INPUT_LOG_FILE: ${LOG_FILE:-pipery.jsonl}
 
     - step: &setup-step
         name: Setup Docker Deployment Environment
@@ -32,39 +34,10 @@ definitions:
         services:
           - docker
         script:
-          - echo "Setting up Docker deployment environment..."
-          - apk add --no-cache curl bash wget tar gzip git openssh-client kubectl
-          - docker --version
-          - |
-            case "$DEPLOY_TARGET" in
-              argocd)
-                echo "Installing ArgoCD CLI..."
-                curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-                chmod +x /usr/local/bin/argocd
-                argocd version --client
-                ;;
-              cloud-run)
-                echo "Installing Google Cloud SDK..."
-                apk add --no-cache google-cloud-sdk
-                gcloud --version || echo "gcloud configured"
-                ;;
-              helm)
-                echo "Installing Helm..."
-                curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-                helm version
-                ;;
-              ansible)
-                echo "Installing Ansible..."
-                apk add --no-cache ansible openssh-client
-                ansible --version
-                ;;
-              docker-compose)
-                echo "Installing Docker Compose..."
-                apk add --no-cache docker-compose
-                docker-compose --version
-                ;;
-            esac
-          - echo "Docker deployment environment ready"
+          # Refactored: Call shared script instead of inline logic
+          - bash ./src/setup-psh.sh
+        env:
+          INPUT_LOG_FILE: ${LOG_FILE:-pipery.jsonl}
 
     - step: &download-step
         name: Download/Pull Docker Image
@@ -72,27 +45,15 @@ definitions:
         services:
           - docker
         script:
-          - |
-            if [ "$SKIP_DOWNLOAD" = "true" ]; then
-              echo "Skipping image download (SKIP_DOWNLOAD=true)"
-              exit 0
-            fi
-          - echo "Preparing Docker image..."
-          - |
-            if [ -z "$IMAGE_NAME" ] || [ -z "$IMAGE_TAG" ]; then
-              echo "ERROR: IMAGE_NAME and IMAGE_TAG must be set"
-              exit 1
-            fi
-          - echo "Image reference: $IMAGE_NAME:$IMAGE_TAG"
-          - |
-            if [ -n "$REGISTRY_PASSWORD" ]; then
-              echo "Logging into registry: $REGISTRY"
-              echo "$REGISTRY_PASSWORD" | docker login -u "$REGISTRY_USERNAME" --password-stdin "$REGISTRY"
-            fi
-          - echo "Pulling image: $IMAGE_NAME:$IMAGE_TAG"
-          - docker pull $IMAGE_NAME:$IMAGE_TAG
-          - docker images | grep $IMAGE_NAME
-          - echo "Image ready for deployment"
+          # Refactored: Call shared script instead of inline logic
+          - bash ./src/step-pull.sh
+        env:
+          INPUT_IMAGE_NAME: ${IMAGE_NAME}
+          INPUT_IMAGE_TAG: ${IMAGE_TAG:-latest}
+          INPUT_REGISTRY: ${REGISTRY:-ghcr.io}
+          INPUT_REGISTRY_USERNAME: ${REGISTRY_USERNAME}
+          INPUT_REGISTRY_PASSWORD: ${REGISTRY_PASSWORD}
+          INPUT_LOG_FILE: ${LOG_FILE:-pipery.jsonl}
 
     - step: &deploy-step-script
         name: Deploy to Target
@@ -100,135 +61,18 @@ definitions:
         services:
           - docker
         script:
-          - |
-            if [ "$SKIP_DEPLOY" = "true" ]; then
-              echo "Skipping deployment (SKIP_DEPLOY=true)"
-              exit 0
-            fi
-          - apk add --no-cache curl bash wget tar gzip git openssh-client kubectl
-          - echo "Deploying to target: $DEPLOY_TARGET"
-          - |
-            case "$DEPLOY_TARGET" in
-              argocd)
-                echo "=== Deploying via ArgoCD ==="
-                if [ -z "$ARGOCD_SERVER" ] || [ -z "$ARGOCD_TOKEN" ]; then
-                  echo "ERROR: ARGOCD_SERVER and ARGOCD_TOKEN required"
-                  exit 1
-                fi
-                if [ -z "$ARGOCD_APP_NAME" ]; then
-                  echo "ERROR: ARGOCD_APP_NAME required"
-                  exit 1
-                fi
-                curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-                chmod +x /usr/local/bin/argocd
-                argocd login $ARGOCD_SERVER --insecure --username admin --password $ARGOCD_TOKEN
-                echo "Setting image for ArgoCD application..."
-                argocd app set $ARGOCD_APP_NAME \
-                  -p image.repository=$IMAGE_NAME \
-                  -p image.tag=$IMAGE_TAG \
-                  --grpc-web || true
-                echo "Syncing ArgoCD application..."
-                argocd app sync $ARGOCD_APP_NAME --grpc-web --wait
-                echo "ArgoCD deployment complete"
-                ;;
-              cloud-run)
-                echo "=== Deploying to Google Cloud Run ==="
-                if [ -z "$GCLOUD_SERVICE_KEY_BASE64" ]; then
-                  echo "ERROR: GCLOUD_SERVICE_KEY_BASE64 required"
-                  exit 1
-                fi
-                if [ -z "$CLOUDRUN_SERVICE_NAME" ] || [ -z "$GCLOUD_PROJECT_ID" ]; then
-                  echo "ERROR: CLOUDRUN_SERVICE_NAME and GCLOUD_PROJECT_ID required"
-                  exit 1
-                fi
-                apk add --no-cache google-cloud-sdk
-                echo "$GCLOUD_SERVICE_KEY_BASE64" | base64 -d > /tmp/gcloud-key.json
-                gcloud auth activate-service-account --key-file=/tmp/gcloud-key.json
-                gcloud config set project ${GCLOUD_PROJECT_ID}
-                echo "Deploying to Cloud Run: $CLOUDRUN_SERVICE_NAME"
-                gcloud run deploy $CLOUDRUN_SERVICE_NAME \
-                  --image $IMAGE_NAME:$IMAGE_TAG \
-                  --platform managed \
-                  --region ${CLOUDRUN_REGION:-us-central1} \
-                  --allow-unauthenticated \
-                  --memory ${CLOUDRUN_MEMORY:-512Mi} \
-                  --cpu ${CLOUDRUN_CPU:-1} \
-                  --timeout ${CLOUDRUN_TIMEOUT:-300s} \
-                  --max-instances ${CLOUDRUN_MAX_INSTANCES:-100}
-                echo "Cloud Run deployment complete"
-                ;;
-              helm)
-                echo "=== Deploying via Helm ==="
-                if [ -z "$KUBECONFIG_BASE64" ]; then
-                  echo "ERROR: KUBECONFIG_BASE64 required for Helm"
-                  exit 1
-                fi
-                if [ -z "$HELM_RELEASE_NAME" ] || [ -z "$HELM_CHART" ]; then
-                  echo "ERROR: HELM_RELEASE_NAME and HELM_CHART required"
-                  exit 1
-                fi
-                echo "$KUBECONFIG_BASE64" | base64 -d > /tmp/kubeconfig
-                export KUBECONFIG=/tmp/kubeconfig
-                curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-                kubectl cluster-info
-                echo "Adding/updating Helm repositories..."
-                if [ -n "$HELM_REPO_URL" ] && [ -n "$HELM_REPO_NAME" ]; then
-                  helm repo add $HELM_REPO_NAME $HELM_REPO_URL || helm repo update $HELM_REPO_NAME
-                fi
-                echo "Upgrading Helm release: $HELM_RELEASE_NAME"
-                helm upgrade --install $HELM_RELEASE_NAME $HELM_CHART \
-                  --namespace ${KUBE_NAMESPACE:-default} \
-                  --set image.repository=$IMAGE_NAME \
-                  --set image.tag=$IMAGE_TAG \
-                  --set deployStrategy=$DEPLOY_STRATEGY \
-                  ${HELM_VALUES_FILE:+--values $HELM_VALUES_FILE} \
-                  --wait --timeout 5m
-                echo "Helm deployment complete"
-                ;;
-              ansible)
-                echo "=== Deploying via Ansible ==="
-                if [ -z "$ANSIBLE_PLAYBOOK" ]; then
-                  echo "ERROR: ANSIBLE_PLAYBOOK required"
-                  exit 1
-                fi
-                apk add --no-cache ansible openssh-client
-                if [ -n "$ANSIBLE_VAULT_PASSWORD" ]; then
-                  echo "$ANSIBLE_VAULT_PASSWORD" > /tmp/vault_pass
-                  chmod 600 /tmp/vault_pass
-                fi
-                cd ${PROJECT_PATH:-.}
-                ansible-playbook \
-                  ${ANSIBLE_VAULT_PASSWORD:+--vault-password-file=/tmp/vault_pass} \
-                  -i ${ANSIBLE_INVENTORY:-inventory.ini} \
-                  -e "image_name=$IMAGE_NAME" \
-                  -e "image_tag=$IMAGE_TAG" \
-                  -e "deploy_target=$DEPLOY_TARGET" \
-                  -e "deploy_strategy=$DEPLOY_STRATEGY" \
-                  $ANSIBLE_PLAYBOOK
-                echo "Ansible deployment complete"
-                ;;
-              docker-compose)
-                echo "=== Deploying via Docker Compose ==="
-                if [ -z "$DOCKER_COMPOSE_FILE" ]; then
-                  DOCKER_COMPOSE_FILE="docker-compose.yml"
-                fi
-                if [ ! -f "$DOCKER_COMPOSE_FILE" ]; then
-                  echo "ERROR: Docker Compose file not found: $DOCKER_COMPOSE_FILE"
-                  exit 1
-                fi
-                apk add --no-cache docker-compose openssh-client
-                cd ${PROJECT_PATH:-.}
-                echo "Pulling images in compose file..."
-                docker-compose -f $DOCKER_COMPOSE_FILE pull
-                echo "Starting services..."
-                docker-compose -f $DOCKER_COMPOSE_FILE up -d
-                echo "Docker Compose deployment complete"
-                ;;
-              *)
-                echo "ERROR: Unknown DEPLOY_TARGET: $DEPLOY_TARGET"
-                exit 1
-                ;;
-            esac
+          # Refactored: Call shared script instead of inline logic
+          - bash ./src/step-deploy.sh
+        env:
+          INPUT_PROJECT_PATH: ${PROJECT_PATH:-.}
+          INPUT_DEPLOY_TARGET: ${DEPLOY_TARGET:-argocd}
+          INPUT_DEPLOY_STRATEGY: ${DEPLOY_STRATEGY:-rolling}
+          INPUT_IMAGE_NAME: ${IMAGE_NAME}
+          INPUT_IMAGE_TAG: ${IMAGE_TAG:-latest}
+          INPUT_REGISTRY: ${REGISTRY:-ghcr.io}
+          INPUT_REGISTRY_USERNAME: ${REGISTRY_USERNAME}
+          INPUT_REGISTRY_PASSWORD: ${REGISTRY_PASSWORD}
+          INPUT_LOG_FILE: ${LOG_FILE:-pipery.jsonl}
 
     - step: &status-check-step
         name: Status Check & Health Verification
@@ -236,59 +80,25 @@ definitions:
         services:
           - docker
         script:
-          - |
-            if [ "$SKIP_STATUS_CHECK" = "true" ]; then
-              echo "Skipping status check (SKIP_STATUS_CHECK=true)"
-              exit 0
-            fi
-          - apk add --no-cache curl kubectl
-          - echo "Checking deployment status..."
-          - |
-            case "$DEPLOY_TARGET" in
-              argocd)
-                echo "Checking ArgoCD application status..."
-                argocd app get $ARGOCD_APP_NAME --grpc-web || true
-                ;;
-              cloud-run)
-                echo "Checking Cloud Run service status..."
-                apk add --no-cache google-cloud-sdk
-                gcloud run services describe $CLOUDRUN_SERVICE_NAME \
-                  --platform managed \
-                  --region ${CLOUDRUN_REGION:-us-central1} || true
-                ;;
-              helm)
-                echo "Checking Helm release status..."
-                export KUBECONFIG=/tmp/kubeconfig
-                helm status $HELM_RELEASE_NAME -n ${KUBE_NAMESPACE:-default}
-                kubectl get pods -n ${KUBE_NAMESPACE:-default}
-                ;;
-              ansible)
-                echo "Ansible deployment status verified"
-                ;;
-              docker-compose)
-                echo "Checking Docker Compose services..."
-                docker-compose -f ${DOCKER_COMPOSE_FILE:-docker-compose.yml} ps
-                ;;
-            esac
+          # Refactored: Call shared script instead of inline logic
+          - bash ./src/step-status.sh
+        env:
+          INPUT_DEPLOY_TARGET: ${DEPLOY_TARGET:-argocd}
+          INPUT_IMAGE_NAME: ${IMAGE_NAME}
+          INPUT_IMAGE_TAG: ${IMAGE_TAG:-latest}
+          INPUT_LOG_FILE: ${LOG_FILE:-pipery.jsonl}
 
     - step: &logs-step
         name: Collect & Archive Logs
         image: alpine:latest
         script:
-          - echo "Archiving deployment logs..."
-          - mkdir -p logs
-          - |
-            {
-              echo "Docker Deployment Report"
-              echo "========================"
-              echo "Target: $DEPLOY_TARGET"
-              echo "Image: $IMAGE_NAME:$IMAGE_TAG"
-              echo "Strategy: $DEPLOY_STRATEGY"
-              echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-              echo "Status: SUCCESS"
-            } > logs/deployment_report.txt
+          # Refactored: Call shared script instead of inline logic
+          - bash ./src/main.sh
+        env:
+          INPUT_PROJECT_PATH: ${PROJECT_PATH:-.}
+          INPUT_LOG_FILE: ${LOG_FILE:-pipery.jsonl}
         artifacts:
-          - logs/**
+          - ${LOG_FILE:-pipery.jsonl}
 
 variables:
   PROJECT_PATH: "."
