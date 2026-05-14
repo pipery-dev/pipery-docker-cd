@@ -1,0 +1,246 @@
+spec:
+  inputs:
+    inputs:
+    - name: PROJECT_PATH
+      default: .
+      description: Path to the project source tree
+    - name: DEPLOY_TARGET
+      default: argocd
+      description: Deploy Target
+    - name: DEPLOY_STRATEGY
+      default: rolling
+      description: Deploy Strategy
+    - name: IMAGE_NAME
+      default: ''
+      description: Image Name
+    - name: IMAGE_TAG
+      default: latest
+      description: Image Tag
+    - name: REGISTRY
+      default: ghcr.io
+      description: Registry
+    - name: REGISTRY_USERNAME
+      description: Registry Username
+    - name: REGISTRY_PASSWORD
+      description: Registry Password
+    - name: ARGOCD_SERVER
+      description: Argocd Server
+    - name: ARGOCD_APP
+      description: Argocd App
+    - name: ARGOCD_TOKEN
+      description: Argocd Token
+    - name: CLOUD_RUN_SERVICE
+      description: Cloud Run Service
+    - name: CLOUD_RUN_REGION
+      description: Cloud Run Region
+    - name: CLOUD_RUN_IMAGE
+      description: Cloud Run Image
+    - name: HELM_RELEASE
+      description: Helm Release
+    - name: HELM_CHART
+      description: Helm Chart
+    - name: HELM_NAMESPACE
+      description: Helm Namespace
+    - name: ANSIBLE_PLAYBOOK
+      description: Ansible Playbook
+    - name: ANSIBLE_INVENTORY
+      description: Ansible Inventory
+  outputs:
+  - name: LOG_FILE
+    description: Pipery JSONL log file with pipeline events
+    default: pipery.jsonl
+variables:
+  PROJECT_PATH: .
+  CONFIG_FILE: .pipery/config.yaml
+  DEPLOY_TARGET: argocd
+  DEPLOY_STRATEGY: rolling
+  SKIP_PULL: 'false'
+  SKIP_DEPLOY: 'false'
+  SKIP_STATUS_CHECK: 'false'
+  IMAGE_NAME: ''
+  IMAGE_TAG: latest
+  REGISTRY: ghcr.io
+  REGISTRY_USERNAME: ''
+  REGISTRY_PASSWORD: ''
+  ARGOCD_SERVER: ''
+  ARGOCD_APP: ''
+  ARGOCD_TOKEN: ''
+  CLOUD_RUN_SERVICE: ''
+  CLOUD_RUN_REGION: us-central1
+  CLOUD_RUN_IMAGE: ''
+  HELM_RELEASE: ''
+  HELM_CHART: ''
+  HELM_NAMESPACE: default
+  ANSIBLE_PLAYBOOK: ''
+  ANSIBLE_INVENTORY: ''
+  LOG_FILE: pipery.jsonl
+stages:
+- checkout
+- setup
+- pull
+- deploy
+- status
+- logs
+checkout:
+  stage: checkout
+  image: alpine:latest
+  script:
+  - echo "Repository already checked out by GitLab CI"
+  - ls -la
+setup:
+  stage: setup
+  image: docker:latest
+  services:
+  - docker:dind
+  script:
+  - bash ./src/setup-psh.sh
+  env:
+    INPUT_LOG_FILE: $LOG_FILE
+pull:
+  stage: pull
+  image: docker:latest
+  services:
+  - docker:dind
+  script:
+  - bash ./src/step-pull.sh
+  env:
+    INPUT_IMAGE_NAME: $IMAGE_NAME
+    INPUT_IMAGE_TAG: $IMAGE_TAG
+    INPUT_REGISTRY: $REGISTRY
+    INPUT_REGISTRY_USERNAME: $REGISTRY_USERNAME
+    INPUT_REGISTRY_PASSWORD: $REGISTRY_PASSWORD
+    INPUT_LOG_FILE: $LOG_FILE
+  rules:
+  - if: $SKIP_PULL == "true"
+    when: never
+  - when: on_success
+  allow_failure: true
+deploy:
+  stage: deploy
+  image: docker:latest
+  services:
+  - docker:dind
+  dependencies:
+  - pull
+  script:
+  - bash ./src/step-deploy.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_DEPLOY_TARGET: $DEPLOY_TARGET
+    INPUT_DEPLOY_STRATEGY: $DEPLOY_STRATEGY
+    INPUT_ARGOCD_SERVER: $ARGOCD_SERVER
+    INPUT_ARGOCD_APP: $ARGOCD_APP
+    INPUT_ARGOCD_TOKEN: $ARGOCD_TOKEN
+    INPUT_CLOUD_RUN_SERVICE: $CLOUD_RUN_SERVICE
+    INPUT_CLOUD_RUN_REGION: $CLOUD_RUN_REGION
+    INPUT_CLOUD_RUN_IMAGE: $CLOUD_RUN_IMAGE
+    INPUT_HELM_RELEASE: $HELM_RELEASE
+    INPUT_HELM_CHART: $HELM_CHART
+    INPUT_HELM_NAMESPACE: $HELM_NAMESPACE
+    INPUT_ANSIBLE_PLAYBOOK: $ANSIBLE_PLAYBOOK
+    INPUT_ANSIBLE_INVENTORY: $ANSIBLE_INVENTORY
+    INPUT_LOG_FILE: $LOG_FILE
+  rules:
+  - if: $SKIP_DEPLOY == "true"
+    when: never
+  - when: on_success
+  allow_failure: true
+status:
+  stage: status
+  image: docker:latest
+  services:
+  - docker:dind
+  dependencies:
+  - deploy
+  script:
+  - bash ./src/step-status.sh
+  env:
+    INPUT_DEPLOY_TARGET: $DEPLOY_TARGET
+    INPUT_ARGOCD_SERVER: $ARGOCD_SERVER
+    INPUT_ARGOCD_APP: $ARGOCD_APP
+    INPUT_ARGOCD_TOKEN: $ARGOCD_TOKEN
+    INPUT_CLOUD_RUN_SERVICE: $CLOUD_RUN_SERVICE
+    INPUT_CLOUD_RUN_REGION: $CLOUD_RUN_REGION
+    INPUT_HELM_RELEASE: $HELM_RELEASE
+    INPUT_HELM_NAMESPACE: $HELM_NAMESPACE
+    INPUT_LOG_FILE: $LOG_FILE
+  rules:
+  - if: $SKIP_STATUS_CHECK == "true"
+    when: never
+  - when: on_success
+  allow_failure: true
+publish_logs:
+  stage: logs
+  image: alpine:latest
+  script:
+  - echo "Collecting logs and artifacts..."
+  - "if [ -f \"$LOG_FILE\" ]; then\n  echo \"Log file size: $(wc -c < $LOG_FILE) bytes\"\
+    \nfi\n"
+  artifacts:
+    paths:
+    - $LOG_FILE
+    expire_in: 90 days
+  when: always
+dashboard_link:
+  stage: logs
+  image: alpine:latest
+  needs:
+  - publish_logs
+  script:
+  - echo "Generating Pipery Dashboard link..."
+  - '# Get the artifact URL from GitLab API
+
+    ARTIFACT_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/jobs/${CI_JOB_ID}/artifacts"
+
+    echo "Artifact URL: $ARTIFACT_URL"
+
+
+    # URL encode the artifact path
+
+    ENCODED_URL=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''''))"
+    "$ARTIFACT_URL")
+
+
+    # Create dashboard link
+
+    DASHBOARD_URL="https://dash.pipery.dev/?artifact=${ENCODED_URL}"
+
+
+    # Output the link in markdown format
+
+    echo ""
+
+    echo "=========================================="
+
+    echo "Pipery Dashboard Link"
+
+    echo "=========================================="
+
+    echo "[$DASHBOARD_URL]($DASHBOARD_URL)"
+
+    echo ""
+
+    echo "Direct URL:"
+
+    echo "$DASHBOARD_URL"
+
+    echo "=========================================="
+
+    echo ""
+
+
+    # Save to artifact file for persistence
+
+    mkdir -p artifacts
+
+    echo "DASHBOARD_URL=$DASHBOARD_URL" > artifacts/dashboard_link.env
+
+    '
+  artifacts:
+    paths:
+    - artifacts/
+    reports:
+      dotenv: artifacts/dashboard_link.env
+    expire_in: 90 days
+  allow_failure: true
+  when: always
